@@ -1,0 +1,11 @@
+# Datasets (never deploy)
+dataset*/
+data*/
+images*/
+train/
+val/
+test/
+
+# Python
+__pycache__/
+*.pyc
