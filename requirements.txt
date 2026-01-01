@@ -4,4 +4,3 @@ python-multipart
 torch
 torchvision
 pillow
-scikit-learn
