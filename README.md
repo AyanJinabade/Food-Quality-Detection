@@ -1,13 +1,13 @@
 # Food-Quality-Detection
 Food waste and unsafe food donation is a major issue.
-This system helps NGOs and food donors decide whether
+This system helps NGOs and food donors decide whether.
 food is safe to donate using AI-based image analysis.
 
-WHAT I BUILT ?
-- FastAPI backend for food safety prediction
-- Image-based ML inference (EfficientNet)
-- Dockerized production deployment
-- Public REST API with Swagger docs
+ WHAT I BUILT:
+ FastAPI backend for food safety prediction
+ Image-based ML inference (EfficientNet)
+ Dockerized production deployment
+ Public REST API with Swagger docs
 
 LIVE DEMO:
 Live API: https://theoretical-amye-resqfood-af38cc63.koyeb.app
