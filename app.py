@@ -1,5 +1,4 @@
 from fastapi import FastAPI
-
 app = FastAPI(
     title="ResqFood Food Safety API",
     docs_url="/docs",
