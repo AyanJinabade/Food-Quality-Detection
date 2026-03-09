@@ -4,15 +4,15 @@ import torch.nn as nn
 from torchvision import models, transforms
 from PIL import Image
 
-
+# ---------------- Device ----------------
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Using device:", device)
 
 
+# ---------------- Model ----------------
 
 class CookedFoodEfficientNet(nn.Module):
-
     def __init__(self, num_classes=3):
         super().__init__()
 
@@ -21,41 +21,29 @@ class CookedFoodEfficientNet(nn.Module):
         )
 
         in_features = self.model.classifier[1].in_features
-
-        self.model.classifier[1] = nn.Linear(
-            in_features,
-            num_classes
-        )
+        self.model.classifier[1] = nn.Linear(in_features, num_classes)
 
     def forward(self, x):
         return self.model(x)
 
 
+# ---------------- Load Model ----------------
 
-BASE_DIR = os.path.dirname(
-    os.path.dirname(
-        os.path.abspath(__file__)
-    )
-)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-MODEL_PATH = os.path.join(
-    BASE_DIR,
-    "resqfood_cooked_efficientnet.pt"
-)
+MODEL_PATH = os.path.join(BASE_DIR, "resqfood_cooked_efficientnet.pt")
 
 model = CookedFoodEfficientNet().to(device)
 
-state_dict = torch.load(
-    MODEL_PATH,
-    map_location=device
-)
-
+state_dict = torch.load(MODEL_PATH, map_location=device)
 model.load_state_dict(state_dict)
+
 model.eval()
 
-print("Model loaded successfully")
+print("✅ Model loaded successfully")
 
 
+# ---------------- Labels ----------------
 
 IDX_TO_CLASS = {
     0: "normal",
@@ -64,6 +52,7 @@ IDX_TO_CLASS = {
 }
 
 
+# ---------------- Image Transform ----------------
 
 tfms = transforms.Compose([
     transforms.Resize((224, 224)),
@@ -75,12 +64,12 @@ tfms = transforms.Compose([
 ])
 
 
+# ---------------- Prediction ----------------
+
 def predict(image_path):
 
     if not os.path.exists(image_path):
-        raise FileNotFoundError(
-            f"Image not found: {image_path}"
-        )
+        raise FileNotFoundError(f"Image not found: {image_path}")
 
     try:
         img = Image.open(image_path).convert("RGB")
@@ -95,24 +84,28 @@ def predict(image_path):
 
         probs = torch.softmax(logits, dim=1)
 
-        conf, pred_idx = torch.max(probs, dim=1)
+        confidence, pred_idx = torch.max(probs, dim=1)
 
     label = IDX_TO_CLASS[pred_idx.item()]
-    confidence = round(conf.item(), 4)
+    confidence = float(round(confidence.item(), 4))
 
-    
+    # ---------------- Decision Logic ----------------
 
-    if confidence < 0.6:
-        decision = "UNCERTAIN_MANUAL_CHECK"
+    if confidence < 0.55:
+        decision = "REJECT_UNCLEAR_IMAGE"
         safe_for_donation = False
 
-    elif label == "normal":
-        decision = "CHECK_TIME_AND_STORAGE"
+    elif label == "spoiled":
+        decision = "REJECT_SPOILED_FOOD"
+        safe_for_donation = False
+
+    elif label == "unclear":
+        decision = "REJECT_UNCLEAR_IMAGE"
+        safe_for_donation = False
+
+    else:  # normal
+        decision = "ACCEPT_FOOD"
         safe_for_donation = True
-
-    else:
-        decision = "REJECT_DONATION"
-        safe_for_donation = False
 
     return {
         "label": label,
@@ -122,6 +115,7 @@ def predict(image_path):
     }
 
 
+# ---------------- Test ----------------
 
 if __name__ == "__main__":
 
