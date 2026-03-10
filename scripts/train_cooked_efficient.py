@@ -1,24 +1,18 @@
-
-# ResqFood – Cooked Food Training
-# EfficientNet-B0 (CPU Safe)
-# Classes: normal / spoiled / unclear
-
-
 import torch
 import torch.nn as nn
 from torchvision import datasets, transforms, models
 from torch.utils.data import DataLoader
 from sklearn.metrics import accuracy_score
-import numpy as np
+import json
 
 
-#  Device
+# Device
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Using device:", device)
 
 
-#  Model Definition
+# Model Definition
 
 class CookedFoodEfficientNet(nn.Module):
     def __init__(self, num_classes=3):
@@ -28,6 +22,11 @@ class CookedFoodEfficientNet(nn.Module):
             weights=models.EfficientNet_B0_Weights.IMAGENET1K_V1
         )
 
+        # Freeze feature layers (faster training)
+        for param in self.model.features.parameters():
+            param.requires_grad = False
+
+        # Replace classifier
         in_features = self.model.classifier[1].in_features
         self.model.classifier[1] = nn.Linear(in_features, num_classes)
 
@@ -35,8 +34,8 @@ class CookedFoodEfficientNet(nn.Module):
         return self.model(x)
 
 
-#  Transforms
-# 
+# Transforms
+
 train_tfms = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.RandomHorizontalFlip(),
@@ -59,7 +58,7 @@ val_tfms = transforms.Compose([
 ])
 
 
-#  Dataset & Loaders
+# Dataset
 
 train_ds = datasets.ImageFolder(
     "dataset_cooked/train",
@@ -72,31 +71,42 @@ val_ds = datasets.ImageFolder(
 )
 
 print("Class mapping:", train_ds.class_to_idx)
-# MUST be {'normal': 0, 'spoiled': 1, 'unclear': 2}
+
+# Save class mapping for inference
+with open("class_map.json", "w") as f:
+    json.dump(train_ds.class_to_idx, f)
+
+
+# DataLoaders
 
 train_loader = DataLoader(
     train_ds,
-    batch_size=8,      
+    batch_size=8,
     shuffle=True,
-    num_workers=0      
+    num_workers=0,
+    pin_memory=True if device.type == "cuda" else False
 )
 
 val_loader = DataLoader(
     val_ds,
     batch_size=8,
     shuffle=False,
-    num_workers=0
+    num_workers=0,
+    pin_memory=True if device.type == "cuda" else False
 )
 
 
-#  Loss Function
+# Loss Function
 
 criterion = nn.CrossEntropyLoss()
 
 
-# Model & Optimizer
+# Model
 
 model = CookedFoodEfficientNet().to(device)
+
+
+# Optimizer
 
 optimizer = torch.optim.AdamW(
     model.parameters(),
@@ -104,20 +114,35 @@ optimizer = torch.optim.AdamW(
 )
 
 
-#  Training Function
+# Learning Rate Scheduler
+
+scheduler = torch.optim.lr_scheduler.StepLR(
+    optimizer,
+    step_size=3,
+    gamma=0.5
+)
+
+
+# Training Function
 
 def train_one_epoch(model, loader):
+
     model.train()
-    total_loss = 0.0
+    total_loss = 0
 
     for imgs, labels in loader:
+
         imgs = imgs.to(device)
         labels = labels.to(device)
 
         optimizer.zero_grad()
+
         logits = model(imgs)
+
         loss = criterion(logits, labels)
+
         loss.backward()
+
         optimizer.step()
 
         total_loss += loss.item()
@@ -125,31 +150,42 @@ def train_one_epoch(model, loader):
     return total_loss / len(loader)
 
 
-#  Validation Function
+# Validation Function
 
 def validate(model, loader):
+
     model.eval()
-    preds, targets = [], []
+
+    preds = []
+    targets = []
 
     with torch.no_grad():
+
         for imgs, labels in loader:
+
             imgs = imgs.to(device)
+
             logits = model(imgs)
+
             predicted = torch.argmax(logits, dim=1)
 
             preds.extend(predicted.cpu().numpy())
-            targets.extend(labels.numpy())
+            targets.extend(labels.cpu().numpy())
 
     return accuracy_score(targets, preds)
 
 
-#  Training Loop
+# Training Loop
 
-EPOCHS = 5   # Enough for cooked food
+EPOCHS = 10
 
 for epoch in range(EPOCHS):
+
     train_loss = train_one_epoch(model, train_loader)
+
     val_acc = validate(model, val_loader)
+
+    scheduler.step()
 
     print(
         f"Epoch {epoch+1}/{EPOCHS} | "
@@ -158,11 +194,11 @@ for epoch in range(EPOCHS):
     )
 
 
-#  Save Model
+# Save Model
 
 torch.save(
     model.state_dict(),
     "resqfood_cooked_efficientnet.pt"
 )
 
-print(" Cooked food model training complete.")
+print("Cooked food model training complete.")
