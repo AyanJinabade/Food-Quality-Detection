@@ -1,26 +1,22 @@
-
-# ResqFood – Inference Script
-# EfficientNet-B0
-
-
 import torch
 import torch.nn as nn
 from torchvision import transforms, models
 from PIL import Image
-
+import os
 
 # Device
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Using device:", device)
 
-
-# Model Definition (same as training)
+# Model Definition
 
 class FoodFreshnessEfficientNet(nn.Module):
     def __init__(self):
-        super().__init__()
+        super(FoodFreshnessEfficientNet, self).__init__()
+
         self.model = models.efficientnet_b0(weights=None)
+
         in_features = self.model.classifier[1].in_features
         self.model.classifier[1] = nn.Linear(in_features, 1)
 
@@ -28,17 +24,27 @@ class FoodFreshnessEfficientNet(nn.Module):
         return self.model(x)
 
 
-# Load trained model
+
+# Load Model
+MODEL_PATH = "resqfood_freshness_efficientnet.pt"
+
+if not os.path.exists(MODEL_PATH):
+    raise FileNotFoundError(f"Model file not found: {MODEL_PATH}")
 
 model = FoodFreshnessEfficientNet().to(device)
-model.load_state_dict(
-    torch.load("resqfood_freshness_efficientnet.pt", map_location=device)
+
+state_dict = torch.load(
+    MODEL_PATH,
+    map_location=device
 )
+
+model.load_state_dict(state_dict)
 model.eval()
 
+print("Model loaded successfully")
 
-# Image transforms (NO augmentation)
 
+# Image Transform
 tfms = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
@@ -49,31 +55,45 @@ tfms = transforms.Compose([
 ])
 
 
-# Prediction function
-
+# Prediction Function
 def predict(image_path, threshold=0.75):
-    img = Image.open(image_path).convert("RGB")
+
+    if not os.path.exists(image_path):
+        raise FileNotFoundError(f"Image not found: {image_path}")
+
+    try:
+        img = Image.open(image_path).convert("RGB")
+    except Exception as e:
+        raise ValueError(f"Invalid image file: {e}")
+
     img = tfms(img).unsqueeze(0).to(device)
 
     with torch.no_grad():
-        prob = torch.sigmoid(model(img)).item()
+        output = model(img)
+        prob = torch.sigmoid(output).item()
 
     if prob >= threshold:
-        return {
+        result = {
             "label": "fresh",
             "confidence": round(prob, 4),
             "decision": "ACCEPT_FOR_DONATION"
         }
     else:
-        return {
+        result = {
             "label": "avoid",
             "confidence": round(prob, 4),
             "decision": "REJECT_DONATION"
         }
 
+    return result
 
-# Test run
+# Test Run
 
 if __name__ == "__main__":
-    result = predict(r"C:\Users\ilham\Desktop\Ayan\resqfood-food-quality\dataset_raw\train\fresh\apple\a_f008.png")
+
+    image_path = r"C:\Users\ilham\Desktop\Ayan\resqfood-food-quality\dataset_raw\train\fresh\apple\a_f008.png"
+
+    result = predict(image_path)
+
+    print("\nPrediction Result")
     print(result)
