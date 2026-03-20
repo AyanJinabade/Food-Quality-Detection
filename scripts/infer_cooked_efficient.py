@@ -4,13 +4,10 @@ import torch.nn as nn
 from torchvision import models, transforms
 from PIL import Image
 
-# ---------------- Device ----------------
-
+CONF_THRESHOLD = 0.55
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Using device:", device)
 
-
-# ---------------- Model ----------------
 
 class CookedFoodEfficientNet(nn.Module):
     def __init__(self, num_classes=3):
@@ -26,12 +23,11 @@ class CookedFoodEfficientNet(nn.Module):
     def forward(self, x):
         return self.model(x)
 
-
-# ---------------- Load Model ----------------
-
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
 MODEL_PATH = os.path.join(BASE_DIR, "resqfood_cooked_efficientnet.pt")
+
+if not os.path.exists(MODEL_PATH):
+    raise FileNotFoundError(f"Model not found: {MODEL_PATH}")
 
 model = CookedFoodEfficientNet().to(device)
 
@@ -39,20 +35,13 @@ state_dict = torch.load(MODEL_PATH, map_location=device)
 model.load_state_dict(state_dict)
 
 model.eval()
-
-print("✅ Model loaded successfully")
-
-
-# ---------------- Labels ----------------
+print(" Model loaded successfully")
 
 IDX_TO_CLASS = {
     0: "normal",
     1: "spoiled",
     2: "unclear"
 }
-
-
-# ---------------- Image Transform ----------------
 
 tfms = transforms.Compose([
     transforms.Resize((224, 224)),
@@ -63,9 +52,7 @@ tfms = transforms.Compose([
     )
 ])
 
-
-# ---------------- Prediction ----------------
-
+# ---------------- PREDICT ----------------
 def predict(image_path):
 
     if not os.path.exists(image_path):
@@ -78,44 +65,47 @@ def predict(image_path):
 
     img = tfms(img).unsqueeze(0).to(device)
 
-    with torch.no_grad():
-
+    with torch.inference_mode():   # faster than no_grad
         logits = model(img)
-
         probs = torch.softmax(logits, dim=1)
 
         confidence, pred_idx = torch.max(probs, dim=1)
 
-    label = IDX_TO_CLASS[pred_idx.item()]
+    label = IDX_TO_CLASS.get(pred_idx.item(), "unknown")
     confidence = float(round(confidence.item(), 4))
 
-    # ---------------- Decision Logic ----------------
-
-    if confidence < 0.55:
+    if confidence < CONF_THRESHOLD:
         decision = "REJECT_UNCLEAR_IMAGE"
-        safe_for_donation = False
+        reason = "Low confidence prediction"
+        safe = False
 
     elif label == "spoiled":
         decision = "REJECT_SPOILED_FOOD"
-        safe_for_donation = False
+        reason = "Detected spoiled food"
+        safe = False
 
     elif label == "unclear":
         decision = "REJECT_UNCLEAR_IMAGE"
-        safe_for_donation = False
+        reason = "Image unclear"
+        safe = False
 
-    else:  # normal
+    elif label == "normal":
         decision = "ACCEPT_FOOD"
-        safe_for_donation = True
+        reason = "Food appears safe"
+        safe = True
+
+    else:
+        decision = "REJECT_UNKNOWN"
+        reason = "Unknown classification"
+        safe = False
 
     return {
         "label": label,
         "confidence": confidence,
         "decision": decision,
-        "safe_for_donation": safe_for_donation
+        "safe_for_donation": safe,
+        "reason": reason
     }
-
-
-# ---------------- Test ----------------
 
 if __name__ == "__main__":
 
