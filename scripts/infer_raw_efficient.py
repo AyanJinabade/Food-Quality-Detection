@@ -4,16 +4,15 @@ from torchvision import transforms, models
 from PIL import Image
 import os
 
-# Device
+MODEL_PATH = "resqfood_freshness_efficientnet.pt"
+CONF_THRESHOLD = 0.75
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Using device:", device)
 
-# Model Definition
-
 class FoodFreshnessEfficientNet(nn.Module):
     def __init__(self):
-        super(FoodFreshnessEfficientNet, self).__init__()
+        super().__init__()
 
         self.model = models.efficientnet_b0(weights=None)
 
@@ -23,28 +22,19 @@ class FoodFreshnessEfficientNet(nn.Module):
     def forward(self, x):
         return self.model(x)
 
-
-
-# Load Model
-MODEL_PATH = "resqfood_freshness_efficientnet.pt"
-
 if not os.path.exists(MODEL_PATH):
     raise FileNotFoundError(f"Model file not found: {MODEL_PATH}")
 
 model = FoodFreshnessEfficientNet().to(device)
 
-state_dict = torch.load(
-    MODEL_PATH,
-    map_location=device
-)
+state_dict = torch.load(MODEL_PATH, map_location=device)
 
-model.load_state_dict(state_dict)
+# Safe loading
+model.load_state_dict(state_dict, strict=False)
+
 model.eval()
+print(" Model loaded successfully")
 
-print("Model loaded successfully")
-
-
-# Image Transform
 tfms = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
@@ -53,10 +43,13 @@ tfms = transforms.Compose([
         std=[0.229, 0.224, 0.225]
     )
 ])
+def safe_prob(x):
+    try:
+        return float(x)
+    except:
+        return 0.0
 
-
-# Prediction Function
-def predict(image_path, threshold=0.75):
+def predict(image_path: str, threshold: float = CONF_THRESHOLD):
 
     if not os.path.exists(image_path):
         raise FileNotFoundError(f"Image not found: {image_path}")
@@ -68,26 +61,27 @@ def predict(image_path, threshold=0.75):
 
     img = tfms(img).unsqueeze(0).to(device)
 
-    with torch.no_grad():
+    with torch.inference_mode():   # faster
         output = model(img)
         prob = torch.sigmoid(output).item()
 
+    prob = safe_prob(prob)
+
     if prob >= threshold:
-        result = {
-            "label": "fresh",
-            "confidence": round(prob, 4),
-            "decision": "ACCEPT_FOR_DONATION"
-        }
+        label = "fresh"
+        decision = "ACCEPT_FOR_DONATION"
+        reason = "High freshness confidence"
     else:
-        result = {
-            "label": "avoid",
-            "confidence": round(prob, 4),
-            "decision": "REJECT_DONATION"
-        }
+        label = "avoid"
+        decision = "REJECT_DONATION"
+        reason = "Low freshness confidence"
 
-    return result
-
-# Test Run
+    return {
+        "label": label,
+        "confidence": round(prob, 4),
+        "decision": decision,
+        "reason": reason
+    }
 
 if __name__ == "__main__":
 
