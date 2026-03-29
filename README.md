@@ -1,4 +1,5 @@
 Food Quality Detection System
+
 AI-powered system to assess food safety and reduce unsafe food donations using image-based analysis.
 Overview
 Food waste and unsafe food donation are critical challenges. This project provides an intelligent solution that helps NGOs and food donors determine whether food is safe for consumption using deep learning.
