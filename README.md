@@ -48,9 +48,3 @@ Impact
 Enables NGOs to make faster and safer food collection decisions
 Reduces risk of distributing unsafe food
 Contributes to minimizing food waste through better filtering
-
-Future Improvements
-Add authentication for NGO access
-Improve model accuracy with larger datasets
-Build a web UI for image uploads
-Implement logging and monitoring for predictions
