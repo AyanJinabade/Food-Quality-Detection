@@ -3,7 +3,6 @@ Food Quality Detection System
 AI-powered system to assess food safety and reduce unsafe food donations using image-based analysis.
 Overview
 Food waste and unsafe food donation are critical challenges. This project provides an intelligent solution that helps NGOs and food donors determine whether food is safe for consumption using deep learning.
-
 The system leverages image-based machine learning to classify food quality and supports real-time decision-making through a deployed API.
 
 Key Features
@@ -32,17 +31,20 @@ Docker
 Koyeb
 EfficientNet
 
+
 Challenges & Solutions
 Deployment Challenges
 Docker image too large for cloud platforms
 Reverse proxy issues affecting API documentation
 Health check failures on free-tier hosting
 
+
 Solutions Implemented
 Optimized Docker image size
 Restructured project for efficient deployment
 Configured proper health endpoints
 Migrated deployment to a more suitable platform (Koyeb)
+
 
 Impact
 Enables NGOs to make faster and safer food collection decisions
