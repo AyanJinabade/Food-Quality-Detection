@@ -1,4 +1,6 @@
 from fastapi import FastAPI
+from pydantic import BaseModel
+from datetime import datetime
 
 app = FastAPI(
     title="ResqFood Food Safety API",
@@ -9,9 +11,21 @@ app = FastAPI(
     openapi_url="/openapi.json"
 )
 
-@app.get("/")
+class HealthResponse(BaseModel):
+    status: str
+    service: str
+    timestamp: str
+
+@app.get("/", response_model=HealthResponse, tags=["Health"])
 def health_check():
     return {
-        "status": "ResqFood API is running",
-        "service": "Food Safety Prediction API"
+        "status": "ok",
+        "service": "ResqFood Food Safety API",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+@app.get("/version", tags=["Info"])
+def get_version():
+    return {
+        "version": "1.0.0",
+        "app": "ResqFood"
     }
